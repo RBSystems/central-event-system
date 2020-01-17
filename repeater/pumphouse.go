@@ -54,8 +54,8 @@ type PumpingStation struct {
 	pingExit  chan bool
 
 	writeConfirm chan bool
-	timeoutChan  chan bool
-	errorChan    chan error
+	//timeoutChan  chan bool
+	errorChan chan error
 
 	writeTimeout time.Time
 	readTimeout  time.Time
@@ -118,16 +118,16 @@ func StartConnection(proc, room string, r *Repeater, dbDevConn bool) (*PumpingSt
 		SendChannel:    make(chan base.EventWrapper, writeBufferSize),
 		readExit:       make(chan bool, 1),
 		pingExit:       make(chan bool, 1),
-		timeoutChan:    make(chan bool, 1),
-		writeExit:      make(chan bool, 1),
-		writeConfirm:   make(chan bool, 1),
-		errorChan:      make(chan error, 6),
-		ID:             proc,
-		dbDevConn:      dbDevConn, //is this a device we need to get from the database?
-		Room:           room,
-		r:              r,
-		tick:           true,
-		starttime:      time.Now(),
+		//timeoutChan:    make(chan bool, 1),
+		writeExit:    make(chan bool, 1),
+		writeConfirm: make(chan bool, 1),
+		errorChan:    make(chan error, 6),
+		ID:           proc,
+		dbDevConn:    dbDevConn, //is this a device we need to get from the database?
+		Room:         room,
+		r:            r,
+		tick:         true,
+		starttime:    time.Now(),
 	}
 
 	go toreturn.start()
@@ -144,17 +144,17 @@ func buildFromConnection(proc, room string, r *Repeater, conn *websocket.Conn) (
 		SendChannel:    make(chan base.EventWrapper, writeBufferSize),
 		readExit:       make(chan bool, 1),
 		pingExit:       make(chan bool, 1),
-		timeoutChan:    make(chan bool, 1),
-		writeExit:      make(chan bool, 1),
-		writeConfirm:   make(chan bool, 1),
-		errorChan:      make(chan error, 2),
-		ID:             proc,
-		Room:           room,
-		r:              r,
-		conn:           conn,
-		remoteaddr:     conn.RemoteAddr().String(),
-		tick:           false,
-		starttime:      time.Now(),
+		//timeoutChan:    make(chan bool, 1),
+		writeExit:    make(chan bool, 1),
+		writeConfirm: make(chan bool, 1),
+		errorChan:    make(chan error, 2),
+		ID:           proc,
+		Room:         room,
+		r:            r,
+		conn:         conn,
+		remoteaddr:   conn.RemoteAddr().String(),
+		tick:         false,
+		starttime:    time.Now(),
 	}
 
 	go toreturn.startReadPump()
@@ -284,14 +284,16 @@ func (c *PumpingStation) startWritePump() {
 		case <-c.writeExit:
 			return
 
-		case <-c.timeoutChan:
-			log.L.Infof("[%v] Timeout. Closing.", c.ID)
-			err := c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(500*time.Millisecond))
-			if err != nil {
-				log.L.Debugf("[%v} Problem writing message: %v", c.ID, err.Error())
-				c.errorChan <- err
-			}
-			return
+			/*
+				case <-c.timeoutChan:
+					log.L.Infof("[%v] Timeout. Closing.", c.ID)
+					err := c.conn.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseGoingAway, ""), time.Now().Add(500*time.Millisecond))
+					if err != nil {
+						log.L.Debugf("[%v} Problem writing message: %v", c.ID, err.Error())
+						c.errorChan <- err
+					}
+					return
+			*/
 		}
 	}
 }
@@ -326,29 +328,31 @@ func (c *PumpingStation) startPumper() {
 	c.writeTimeout = time.Now().Add(TTL)
 
 	//start our ticker
-	t := time.NewTicker(TTL)
+	/*t := time.NewTicker(TTL)
 	if !c.tick {
 		//we cancel the ticker
 		t.Stop()
 	} else {
 		log.L.Debugf("Ticker started")
 	}
+	*/
 	for {
 		select {
-		case <-t.C:
-			log.L.Debugf("tick. Checking for timeout.")
-			//check to see if read and write are after now
-			if time.Now().After(c.readTimeout) && time.Now().After(c.writeTimeout) {
-				log.L.Debugf("Timeout...")
+		/*
+			case <-t.C:
+				log.L.Debugf("tick. Checking for timeout.")
+				//check to see if read and write are after now
+				if time.Now().After(c.readTimeout) && time.Now().After(c.writeTimeout) {
+					log.L.Debugf("Timeout...")
 
-				//tell the write channel to timeout
-				c.timeoutChan <- true
+					//tell the write channel to timeout
+					c.timeoutChan <- true
 
-				//time to leave
-				return
-			}
-			log.L.Debugf("No need to close... Continuing")
-
+					//time to leave
+					return
+				}
+				log.L.Debugf("No need to close... Continuing")
+		*/
 		case err := <-c.errorChan:
 			//there was an error
 			log.L.Debugf("[%v] error: %v. Closing..", c.ID, err.Error())
